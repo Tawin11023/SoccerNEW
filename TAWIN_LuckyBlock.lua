@@ -9,12 +9,35 @@ task.wait(1)
 local Players             = game:GetService("Players")
 local TweenService        = game:GetService("TweenService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService          = game:GetService("RunService")
 local LocalPlayer         = Players.LocalPlayer
 
 local function GetRoot()
     local c = LocalPlayer.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- Anti-AFK (กันหลุด 20 นาที)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LocalPlayer.Idled:Connect(function()
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Unknown, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Unknown, false, game)
+    end)
+end)
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- Anti-AFK (กันหลุด 20 นาที สำหรับเปิดฟาร์ม 24 ชม.)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LocalPlayer.Idled:Connect(function()
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Unknown, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Unknown, false, game)
+    end)
+end)
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Tween บิน — เรียบ ไม่กระตุก
@@ -234,11 +257,42 @@ Tabs.Farm:AddSlider("FarmDelay", {
     Callback = function() end
 })
 
+local myBaseCFrame = nil
+
+Tabs.Farm:AddButton({
+    Title       = "📍 บันทึกจุดบ้านปัจจุบัน (Set Base)",
+    Description = "กดเพื่อบันทึกจุดที่ยืนอยู่ตอนนี้เป็นจุดส่งของ/บ้าน",
+    Callback    = function()
+        local root = GetRoot()
+        if root then
+            myBaseCFrame = root.CFrame
+            Fluent:Notify({
+                Title   = "📍 บันทึกจุดบ้านแล้ว",
+                Content = string.format("พิกัด: %.0f, %.0f, %.0f", root.Position.X, root.Position.Y, root.Position.Z),
+                Duration = 4
+            })
+        else
+            Fluent:Notify({Title="❌", Content="ไม่พบตัวละคร", Duration=3})
+        end
+    end
+})
+
+-- ฟังก์ชั่นวาร์ปกลับจุดเซฟทันที
+local function ReturnToBase()
+    local root = GetRoot()
+    if not root then return end
+
+    if myBaseCFrame then
+        root.CFrame = myBaseCFrame
+        task.wait(0.2)
+    end
+end
+
 local farmRunning = false
 
 Tabs.Farm:AddToggle("AutoFarm", {
     Title       = "เริ่ม Auto Farm",
-    Description = "บิน (Tween) -> เก็บ -> บินกลับบ้าน อัตโนมัติ",
+    Description = "บินไปเก็บกล่อง -> วาร์ปกลับจุดเซฟทันที -> วนเก็บเรื่อยๆ",
     Default     = false,
     Callback    = function(val)
         farmRunning = val
@@ -248,68 +302,78 @@ Tabs.Farm:AddToggle("AutoFarm", {
         end
 
         task.spawn(function()
-            local homeRoot = GetRoot()
-            local homeCF   = homeRoot and homeRoot.CFrame
-            Fluent:Notify({Title="เริ่มแล้ว", Content="กด Toggle อีกครั้งเพื่อหยุด", Duration=3})
+            local root = GetRoot()
+            -- ถ้ายังไม่ได้ตั้งจุดบ้าน ให้บันทึกจุดปัจจุบันเป็นจุดบ้านอัตโนมัติ
+            if root and not myBaseCFrame then
+                myBaseCFrame = root.CFrame
+            end
+
+            Fluent:Notify({
+                Title   = "🚀 เริ่ม Auto Farm",
+                Content = "บินเก็บกล่อง -> วาร์ปกลับจุดเซฟ -> วนเรื่อยๆ",
+                Duration = 3
+            })
 
             while farmRunning do
                 local blockType = Options.FarmBlockType and Options.FarmBlockType.Value or "ทุกประเภท"
                 local delay     = Options.FarmDelay and Options.FarmDelay.Value or 0.5
                 local speed     = Options.FarmSpeed and Options.FarmSpeed.Value or 80
-                local types = blockType == "ทุกประเภท"
+                local types     = blockType == "ทุกประเภท"
                     and {"ICONS", "JAPAN", "ALTERNATIVE"}
                     or  {blockType}
 
-                local collected = 0
-
+                -- รวบรวมกล่องทั้งหมดที่ยังมีอยู่ในสนาม
+                local availableBlocks = {}
                 for _, bt in ipairs(types) do
-                    if not farmRunning then break end
                     local blocks = FindBlocks(bt)
-                    local root   = GetRoot()
-                    if root and #blocks > 0 then
-                        -- หากล่องที่ใกล้ที่สุด
-                        local nearest, nearDist = nil, math.huge
-                        for _, part in ipairs(blocks) do
-                            local d = (root.Position - part.Position).Magnitude
-                            if d < nearDist then nearest = part; nearDist = d end
+                    for _, b in ipairs(blocks) do
+                        if b and b.Parent then
+                            table.insert(availableBlocks, {type = bt, part = b})
                         end
-                        
-                        -- บินไปยืนติดหน้ากล่องและหันหน้าเข้าหากล่อง
-                        local targetCF = CFrame.new(nearest.Position + Vector3.new(0, 1, 2), nearest.Position)
+                    end
+                end
+
+                local curRoot = GetRoot()
+                if curRoot and #availableBlocks > 0 then
+                    -- หากล่องที่ใกล้ตัวที่สุด 1 กล่อง
+                    local nearestObj, nearDist = nil, math.huge
+                    for _, item in ipairs(availableBlocks) do
+                        if item.part and item.part.Parent then
+                            local d = (curRoot.Position - item.part.Position).Magnitude
+                            if d < nearDist then
+                                nearestObj = item
+                                nearDist = d
+                            end
+                        end
+                    end
+
+                    if nearestObj and nearestObj.part and nearestObj.part.Parent then
+                        local targetPart = nearestObj.part
+
+                        -- 1. บินไปยืนตรงหน้ากล่อง (หันหน้าเข้าหากล่อง)
+                        local targetCF = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2), targetPart.Position)
                         TweenTo(targetCF, speed)
                         task.wait(0.2)
-                        
-                        -- สั่งเก็บกล่อง (กด E ค้างตามเวลา)
-                        CollectBox(nearest)
-                        
+
+                        -- 2. สั่งกดเก็บกล่อง (กด E ค้างตามเวลา)
+                        CollectBox(targetPart)
                         task.wait(delay)
-                        collected += 1
+
+                        -- 3. วาร์ปกลับจุดที่เซฟไว้ทันที!
+                        ReturnToBase()
+
+                        Fluent:Notify({
+                            Title   = "🏠 วาร์ปกลับแล้ว",
+                            Content = "เก็บ " .. nearestObj.type .. " สำเร็จ -> กำลังไปกล่องถัดไป",
+                            Duration = 2
+                        })
                     end
+                else
+                    -- ถ้ายังไม่มีกล่องเกิด ให้รอที่ฐานและสแกนใหม่เรื่อยๆ
+                    task.wait(1)
                 end
 
-                -- บินกลับบ้าน / ไปที่ CollectPads
-                local pads = GetCollectPads()
-                if pads then
-                    local padPart = pads:IsA("BasePart") and pads or pads:FindFirstChildWhichIsA("BasePart")
-                    if padPart then
-                        TweenTo(CFrame.new(padPart.Position + Vector3.new(0, 2, 0)), speed)
-                        task.wait(0.3)
-                    elseif homeCF then
-                        TweenTo(homeCF, speed)
-                    end
-                elseif homeCF then
-                    TweenTo(homeCF, speed)
-                end
-
-                if collected > 0 then
-                    Fluent:Notify({
-                        Title   = "รอบใหม่",
-                        Content = "เก็บ "..collected.." ประเภทแล้ว -> กลับบ้านแล้ว",
-                        Duration = 2
-                    })
-                end
-
-                task.wait(0.5)
+                task.wait(0.3)
             end
         end)
     end

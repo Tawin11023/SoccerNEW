@@ -57,34 +57,46 @@ end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- ค้นหา Lucky Block จาก workspace.Live.Slimes
--- ชื่อรูปแบบ: "[TYPE] Lucky Block"
+-- รองรับ ICONS, JAPAN, ALTERNATE / ALTERNATIVE
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local BLOCK_KEYS = {
-    ICONS       = "icons",
-    JAPAN       = "japan",
-    ALTERNATIVE = "alternative",
+    ICONS       = {"icons", "icon"},
+    JAPAN       = {"japan"},
+    ALTERNATIVE = {"alternative", "alternate", "alt"},
 }
 
 local function NameMatch(name, blockType)
     local nameLow = name:lower()
-    local key = BLOCK_KEYS[blockType]
-    if not key then return false end
-    return nameLow:find(key, 1, true) and nameLow:find("lucky block", 1, true)
+    local keys = BLOCK_KEYS[blockType]
+    if not keys then return false end
+    for _, key in ipairs(keys) do
+        if nameLow:find(key, 1, true) then
+            return true
+        end
+    end
+    return false
 end
 
 local function FindBlocks(blockType)
     local results = {}
+    local added = {}
     local slimes = workspace:FindFirstChild("Live") and workspace.Live:FindFirstChild("Slimes")
     if not slimes then return results end
+
     for _, obj in ipairs(slimes:GetDescendants()) do
         if NameMatch(obj.Name, blockType) then
+            local part = nil
             if obj:IsA("BasePart") then
-                table.insert(results, obj)
+                part = obj
             elseif obj:IsA("Model") then
-                local root = obj:FindFirstChild("HumanoidRootPart")
-                    or obj:FindFirstChild("PrimaryPart")
+                part = obj:FindFirstChild("HumanoidRootPart")
+                    or obj.PrimaryPart
                     or obj:FindFirstChildWhichIsA("BasePart")
-                if root then table.insert(results, root) end
+            end
+
+            if part and not added[part] then
+                added[part] = true
+                table.insert(results, part)
             end
         end
     end
@@ -395,8 +407,8 @@ local autoRebirthRunning = false
 
 -- 1. อัพตัวละครในบ้าน (Upgrade Slime 1-30)
 Tabs.Upgrade:AddToggle("AutoUpgradeSlime", {
-    Title       = "🆙 ออโต้อัพตัวละครในบ้าน (Upgrade Slime 1-120)",
-    Description = "วนอัพเกรดตัวละครหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
+    Title       = "🆙 ออโต้อัพตัวละครในบ้าน (Upgrade Slime 1-30)",
+    Description = "วนอัพเกรดตัวละครหมายเลข 1 ถึง 30 ในบ้านอัตโนมัติ",
     Default     = false,
     Callback    = function(val)
         autoUpgradeSlimeRunning = val
@@ -405,7 +417,7 @@ Tabs.Upgrade:AddToggle("AutoUpgradeSlime", {
                 while autoUpgradeSlimeRunning do
                     local remote = GetRemote("Upgrade Slime")
                     if remote then
-                        for i = 1, 120 do
+                        for i = 1, 30 do
                             if not autoUpgradeSlimeRunning then break end
                             pcall(function() remote:FireServer(tostring(i)) end)
                             task.wait(0.04)
@@ -420,8 +432,8 @@ Tabs.Upgrade:AddToggle("AutoUpgradeSlime", {
 
 -- 2. เปิด Lucky Block 1-30
 Tabs.Upgrade:AddToggle("AutoOpenLuckyBlock", {
-    Title       = "📦 ออโต้เปิด Lucky Block (1-120)",
-    Description = "วนเปิดกล่องหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
+    Title       = "📦 ออโต้เปิด Lucky Block (1-30)",
+    Description = "วนเปิดกล่องหมายเลข 1 ถึง 30 ในบ้านอัตโนมัติ",
     Default     = false,
     Callback    = function(val)
         autoOpenRunning = val
@@ -430,7 +442,7 @@ Tabs.Upgrade:AddToggle("AutoOpenLuckyBlock", {
                 while autoOpenRunning do
                     local remote = GetRemote("Open Lucky Block")
                     if remote then
-                        for i = 1, 120 do
+                        for i = 1, 30 do
                             if not autoOpenRunning then break end
                             pcall(function() remote:FireServer(tostring(i)) end)
                             task.wait(0.04)
@@ -445,8 +457,8 @@ Tabs.Upgrade:AddToggle("AutoOpenLuckyBlock", {
 
 -- 2. ออโต้เก็บเงิน 1-30
 Tabs.Upgrade:AddToggle("AutoCollectCash", {
-    Title       = "💰 ออโต้เก็บเงิน (Collect Earnings 1-120)",
-    Description = "วนเก็บเงินหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
+    Title       = "💰 ออโต้เก็บเงิน (Collect Earnings 1-30)",
+    Description = "วนเก็บเงินหมายเลข 1 ถึง 30 ในบ้านอัตโนมัติ",
     Default     = false,
     Callback    = function(val)
         autoCashRunning = val
@@ -455,7 +467,7 @@ Tabs.Upgrade:AddToggle("AutoCollectCash", {
                 while autoCashRunning do
                     local remote = GetRemote("Collect Earnings")
                     if remote then
-                        for i = 1, 120 do
+                        for i = 1, 30 do
                             if not autoCashRunning then break end
                             pcall(function() remote:FireServer(tostring(i)) end)
                             task.wait(0.04)

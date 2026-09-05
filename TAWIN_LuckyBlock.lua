@@ -1,6 +1,7 @@
 -- =========================================================================
---  TAWIN | Lucky Block Auto Farm (1-120 Max + Toggle UI Button)
---  มีปุ่มสี่เหลี่ยมลอยสำหรับเปิด/ปิด UI + ลบ Icons ออก + อัพบ้าน 1-120 ครบวงจร
+--  TAWIN | Lucky Block Auto Farm
+--  ตรวจจับจาก workspace.Live.Slimes
+--  NEXT GENERATION | ALTERNATIVE Lucky Block
 -- =========================================================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(1)
@@ -8,8 +9,7 @@ task.wait(1)
 local Players             = game:GetService("Players")
 local TweenService        = game:GetService("TweenService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local UserInputService    = game:GetService("UserInputService")
-local CoreGui             = game:GetService("CoreGui")
+local RunService          = game:GetService("RunService")
 local LocalPlayer         = Players.LocalPlayer
 
 local function GetRoot()
@@ -18,7 +18,7 @@ local function GetRoot()
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 1. Anti-AFK (กันหลุด 20 นาที 100%)
+-- Anti-AFK (กันหลุด 20 นาที)
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 LocalPlayer.Idled:Connect(function()
     pcall(function()
@@ -29,14 +29,26 @@ LocalPlayer.Idled:Connect(function()
 end)
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 2. Tween บินนุ่มนวล
+-- Anti-AFK (กันหลุด 20 นาที สำหรับเปิดฟาร์ม 24 ชม.)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LocalPlayer.Idled:Connect(function()
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Unknown, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Unknown, false, game)
+    end)
+end)
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- Tween บิน — เรียบ ไม่กระตุก
+-- speed = ความเร็ว (studs/s ประมาณ)
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local function TweenTo(targetCF, speed)
     local root = GetRoot()
     if not root then return end
-    speed = speed or 80
+    speed = speed or 80  -- studs per second
     local dist = (root.Position - targetCF.Position).Magnitude
-    local t    = math.clamp(dist / speed, 0.3, 4)
+    local t    = math.clamp(dist / speed, 0.3, 4)  -- ใช้เวลาตาม distance แต่ไม่น้อยกว่า 0.3 วิ
     local info = TweenInfo.new(t, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
     local tween = TweenService:Create(root, info, {CFrame = targetCF})
     tween:Play()
@@ -44,11 +56,12 @@ local function TweenTo(targetCF, speed)
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 3. ค้นหากล่อง (เฉพาะ JAPAN & ALTERNATIVE)
+-- ค้นหา Lucky Block จาก workspace.Live.Slimes
+-- รองรับ NEXT GENERATION, ALTERNATE / ALTERNATIVE
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local BLOCK_KEYS = {
-    JAPAN       = {"japan"},
-    ALTERNATIVE = {"alternative", "alternate", "alt"},
+    ["NEXT GENERATION"] = {"next generation", "next gen", "generation", "nextgeneration", "next"},
+    ["ALTERNATIVE"]     = {"alternative", "alternate", "alt"},
 }
 
 local function NameMatch(name, blockType)
@@ -56,7 +69,9 @@ local function NameMatch(name, blockType)
     local keys = BLOCK_KEYS[blockType]
     if not keys then return false end
     for _, key in ipairs(keys) do
-        if nameLow:find(key, 1, true) then return true end
+        if nameLow:find(key, 1, true) then
+            return true
+        end
     end
     return false
 end
@@ -88,30 +103,37 @@ local function FindBlocks(blockType)
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 4. ระบบกด ProximityPrompt
+-- เก็บกล่อง — ยิงเฉพาะ ProximityPrompt ของกล่องนั้น
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local function TriggerPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
-    local holdTime = prompt.HoldDuration or 0.5
-    if holdTime <= 0 then holdTime = 0.5 end
 
+    local holdTime = prompt.HoldDuration
+    if not holdTime or holdTime <= 0 then
+        holdTime = 0.5
+    end
+
+    -- ปรับคุณสมบัติให้อยู่ในระยะ
     pcall(function()
         prompt.RequiresLineOfSight = false
         prompt.MaxActivationDistance = 9999
     end)
 
+    -- 1. fireproximityprompt API
     if fireproximityprompt then
         pcall(fireproximityprompt, prompt, 0)
         pcall(fireproximityprompt, prompt, holdTime)
         pcall(fireproximityprompt, prompt)
     end
 
+    -- 2. InputHoldBegin -> รอจนครบเวลา Hold -> InputHoldEnd
     pcall(function()
         prompt:InputHoldBegin()
         task.wait(holdTime + 0.1)
         prompt:InputHoldEnd()
     end)
 
+    -- 3. กดค้างปุ่ม E ผ่าน VirtualInputManager
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
         task.wait(holdTime + 0.1)
@@ -126,8 +148,11 @@ local function CollectBox(targetPart)
     local prompts = {}
     local blockModel = targetPart:IsA("Model") and targetPart or targetPart.Parent
 
+    -- 1. หา ProximityPrompt ในตัวกล่องหรือโมเดลกล่อง
     for _, obj in ipairs(targetPart:GetDescendants()) do
-        if obj:IsA("ProximityPrompt") then table.insert(prompts, obj) end
+        if obj:IsA("ProximityPrompt") then
+            table.insert(prompts, obj)
+        end
     end
 
     if blockModel and blockModel ~= workspace then
@@ -138,6 +163,7 @@ local function CollectBox(targetPart)
         end
     end
 
+    -- 2. ถ้ายังไม่เจอ ค้นใน Slimes รอบกล่อง (ระยะ <= 10 studs)
     if #prompts == 0 then
         local slimes = workspace:FindFirstChild("Live") and workspace.Live:FindFirstChild("Slimes")
         if slimes then
@@ -152,9 +178,13 @@ local function CollectBox(targetPart)
         end
     end
 
+    -- 3. สั่งกดค้างจนเก็บเสร็จ
     if #prompts > 0 then
-        for _, prompt in ipairs(prompts) do TriggerPrompt(prompt) end
+        for _, prompt in ipairs(prompts) do
+            TriggerPrompt(prompt)
+        end
     else
+        -- ถ้าไม่เจอ prompt object ให้ลองกด E ค้างตรงหน้ากล่อง
         pcall(function()
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
             task.wait(0.6)
@@ -164,7 +194,7 @@ local function CollectBox(targetPart)
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 5. Helper Remote
+-- Helper: ดึง Remote จาก ReplicatedStorage
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local function GetRemote(name)
     local ok, rem = pcall(function()
@@ -212,88 +242,16 @@ local Tabs = {
 local Options = Fluent.Options
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- 🔘 ปุ่มสี่เหลี่ยมเล็กๆ สำหรับเปิด/ปิด UI (ลากได้)
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-local toggleGui = Instance.new("ScreenGui")
-toggleGui.Name = "TawinToggleGui"
-pcall(function()
-    if syn and syn.protect_gui then
-        syn.protect_gui(toggleGui)
-        toggleGui.Parent = CoreGui
-    elseif gethui then
-        toggleGui.Parent = gethui()
-    else
-        toggleGui.Parent = CoreGui
-    end
-end)
-if not toggleGui.Parent then toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Name = "ToggleButton"
-toggleBtn.Parent = toggleGui
-toggleBtn.Size = UDim2.new(0, 48, 0, 48)
-toggleBtn.Position = UDim2.new(0, 20, 0.5, -24)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
-toggleBtn.BorderColor3 = Color3.fromRGB(0, 170, 255)
-toggleBtn.BorderSizePixel = 2
-toggleBtn.Text = "⚡"
-toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleBtn.TextSize = 22
-toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.Active = true
-toggleBtn.AutoButtonColor = true
-
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = toggleBtn
-
-local stroke = Instance.new("UIStroke")
-stroke.Thickness = 2
-stroke.Color = Color3.fromRGB(0, 170, 255)
-stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-stroke.Parent = toggleBtn
-
--- ระบบลากปุ่ม (Drag)
-local dragging, dragInput, dragStart, startPos
-local function update(input)
-    local delta = input.Position - dragStart
-    toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-toggleBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = toggleBtn.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-toggleBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then update(input) end
-end)
-
--- กดปุ่มเพื่อเปิด/ปิด UI
-toggleBtn.MouseButton1Click:Connect(function()
-    Window:Minimize()
-end)
-
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- TAB 1: AUTO FARM
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Tabs.Farm:AddParagraph({
     Title   = "Auto Farm — Lucky Block",
-    Content = "บินไปหากล่อง (Tween) -> กด E เก็บ -> วาร์ปกลับจุดเซฟทันที\nตรวจจับจาก workspace.Live.Slimes"
+    Content = "บินไปหากล่อง (Tween) -> กด E เก็บ -> บินกลับฐาน\nตรวจจับจาก workspace.Live.Slimes"
 })
 
 Tabs.Farm:AddDropdown("FarmBlockType", {
     Title    = "ประเภทกล่อง",
-    Values   = {"JAPAN", "ALTERNATIVE", "ทุกประเภท"},
+    Values   = {"NEXT GENERATION", "ALTERNATIVE", "ทุกประเภท"},
     Default  = 3,
     Callback = function() end
 })
@@ -330,9 +288,11 @@ Tabs.Farm:AddButton({
     end
 })
 
+-- ฟังก์ชั่นวาร์ปกลับจุดเซฟทันที
 local function ReturnToBase()
     local root = GetRoot()
     if not root then return end
+
     if myBaseCFrame then
         root.CFrame = myBaseCFrame
         task.wait(0.2)
@@ -354,6 +314,7 @@ Tabs.Farm:AddToggle("AutoFarm", {
 
         task.spawn(function()
             local root = GetRoot()
+            -- ถ้ายังไม่ได้ตั้งจุดบ้าน ให้บันทึกจุดปัจจุบันเป็นจุดบ้านอัตโนมัติ
             if root and not myBaseCFrame then
                 myBaseCFrame = root.CFrame
             end
@@ -369,9 +330,10 @@ Tabs.Farm:AddToggle("AutoFarm", {
                 local delay     = Options.FarmDelay and Options.FarmDelay.Value or 0.5
                 local speed     = Options.FarmSpeed and Options.FarmSpeed.Value or 80
                 local types     = blockType == "ทุกประเภท"
-                    and {"JAPAN", "ALTERNATIVE"}
+                    and {"NEXT GENERATION", "ALTERNATIVE"}
                     or  {blockType}
 
+                -- รวบรวมกล่องทั้งหมดที่ยังมีอยู่ในสนาม
                 local availableBlocks = {}
                 for _, bt in ipairs(types) do
                     local blocks = FindBlocks(bt)
@@ -384,6 +346,7 @@ Tabs.Farm:AddToggle("AutoFarm", {
 
                 local curRoot = GetRoot()
                 if curRoot and #availableBlocks > 0 then
+                    -- หากล่องที่ใกล้ตัวที่สุด 1 กล่อง
                     local nearestObj, nearDist = nil, math.huge
                     for _, item in ipairs(availableBlocks) do
                         if item.part and item.part.Parent then
@@ -397,13 +360,17 @@ Tabs.Farm:AddToggle("AutoFarm", {
 
                     if nearestObj and nearestObj.part and nearestObj.part.Parent then
                         local targetPart = nearestObj.part
+
+                        -- 1. บินไปยืนตรงหน้ากล่อง (หันหน้าเข้าหากล่อง)
                         local targetCF = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2), targetPart.Position)
                         TweenTo(targetCF, speed)
                         task.wait(0.2)
 
+                        -- 2. สั่งกดเก็บกล่อง (กด E ค้างตามเวลา)
                         CollectBox(targetPart)
                         task.wait(delay)
 
+                        -- 3. วาร์ปกลับจุดที่เซฟไว้ทันที!
                         ReturnToBase()
 
                         Fluent:Notify({
@@ -413,6 +380,7 @@ Tabs.Farm:AddToggle("AutoFarm", {
                         })
                     end
                 else
+                    -- ถ้ายังไม่มีกล่องเกิด ให้รอที่ฐานและสแกนใหม่เรื่อยๆ
                     task.wait(1)
                 end
 
@@ -423,11 +391,11 @@ Tabs.Farm:AddToggle("AutoFarm", {
 })
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- TAB 2: AUTO BASE / UPGRADES (1-120)
+-- TAB 2: AUTO BASE / UPGRADES
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Tabs.Upgrade:AddParagraph({
     Title   = "Auto Base & Upgrades",
-    Content = "ระบบฟาร์มฐานอัตโนมัติ (1-120 จุด ครอบคลุมทั้งบ้าน)"
+    Content = "ระบบฟาร์มฐานอัตโนมัติ (เปิดกล่อง, เก็บเงิน, อัพเกรด, รีเบิร์ธ)"
 })
 
 local autoUpgradeSlimeRunning = false
@@ -436,6 +404,7 @@ local autoCashRunning = false
 local autoJumpRunning = false
 local autoRebirthRunning = false
 
+-- 1. อัพตัวละครในบ้าน (Upgrade Slime 1-120)
 Tabs.Upgrade:AddToggle("AutoUpgradeSlime", {
     Title       = "🆙 ออโต้อัพตัวละครในบ้าน (Upgrade Slime 1-120)",
     Description = "วนอัพเกรดตัวละครหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
@@ -460,6 +429,7 @@ Tabs.Upgrade:AddToggle("AutoUpgradeSlime", {
     end
 })
 
+-- 2. เปิด Lucky Block 1-120
 Tabs.Upgrade:AddToggle("AutoOpenLuckyBlock", {
     Title       = "📦 ออโต้เปิด Lucky Block (1-120)",
     Description = "วนเปิดกล่องหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
@@ -484,6 +454,7 @@ Tabs.Upgrade:AddToggle("AutoOpenLuckyBlock", {
     end
 })
 
+-- 3. ออโต้เก็บเงิน 1-120
 Tabs.Upgrade:AddToggle("AutoCollectCash", {
     Title       = "💰 ออโต้เก็บเงิน (Collect Earnings 1-120)",
     Description = "วนเก็บเงินหมายเลข 1 ถึง 120 ในบ้านอัตโนมัติ",
@@ -508,6 +479,7 @@ Tabs.Upgrade:AddToggle("AutoCollectCash", {
     end
 })
 
+-- 3. ออโต้อัพการกระโดด
 Tabs.Upgrade:AddSlider("JumpUpgradeAmount", {
     Title    = "จำนวนการอัพเกรดกระโดดต่อครั้ง",
     Min = 1, Max = 10, Default = 3, Rounding = 1,
@@ -525,7 +497,9 @@ Tabs.Upgrade:AddToggle("AutoBuyJump", {
                 while autoJumpRunning do
                     local amount = Options.JumpUpgradeAmount and Options.JumpUpgradeAmount.Value or 3
                     local remote = GetRemote("Buy Speed Upgrade")
-                    if remote then pcall(function() remote:FireServer(amount) end) end
+                    if remote then
+                        pcall(function() remote:FireServer(amount) end)
+                    end
                     task.wait(0.5)
                 end
             end)
@@ -533,6 +507,7 @@ Tabs.Upgrade:AddToggle("AutoBuyJump", {
     end
 })
 
+-- 4. ออโต้รีเบิร์ธ
 Tabs.Upgrade:AddToggle("AutoRebirth", {
     Title       = "🔄 ออโต้รีเบิร์ธ (Auto Rebirth)",
     Description = "รีเบิร์ธอัตโนมัติเมื่อเงินและเลเวลพร้อม",
@@ -543,7 +518,9 @@ Tabs.Upgrade:AddToggle("AutoRebirth", {
             task.spawn(function()
                 while autoRebirthRunning do
                     local remote = GetRemote("Rebirth")
-                    if remote then pcall(function() remote:FireServer() end) end
+                    if remote then
+                        pcall(function() remote:FireServer() end)
+                    end
                     task.wait(1)
                 end
             end)
@@ -552,7 +529,7 @@ Tabs.Upgrade:AddToggle("AutoRebirth", {
 })
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- TAB 3: SCAN & MISC
+-- TAB 3: SCAN
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Tabs.Scan:AddParagraph({
     Title   = "สแกน workspace.Live.Slimes",
@@ -560,20 +537,45 @@ Tabs.Scan:AddParagraph({
 })
 
 Tabs.Scan:AddButton({
-    Title    = "📊 นับกล่องแต่ละประเภท",
-    Callback = function()
-        local japan = #FindBlocks("JAPAN")
-        local alt   = #FindBlocks("ALTERNATIVE")
-        local msg   = string.format("JAPAN: %d\nALTERNATIVE: %d", japan, alt)
-        Fluent:Notify({Title="ผลการค้นหา", Content=msg, Duration=6})
+    Title       = "สแกนชื่อทั้งหมด",
+    Description = "แสดงชื่อ children ทั้งหมดใน Slimes + Output",
+    Callback    = function()
+        local slimes = workspace:FindFirstChild("Live") and workspace.Live:FindFirstChild("Slimes")
+        if not slimes then
+            Fluent:Notify({Title="Error", Content="ไม่พบ workspace.Live.Slimes!", Duration=5})
+            return
+        end
+        print("=== workspace.Live.Slimes (Children) ===")
+        local names = {}
+        for _, c in ipairs(slimes:GetChildren()) do
+            local line = c.Name.." ("..c.ClassName..")"
+            table.insert(names, line)
+            print(line)
+        end
+        Fluent:Notify({
+            Title   = "พบ "..#names.." รายการ -> ดู Output",
+            Content = table.concat(names, "\n"):sub(1, 250),
+            Duration = 8
+        })
     end
 })
 
 Tabs.Scan:AddButton({
-    Title    = "📍 Position ทุกกล่อง",
+    Title    = "นับกล่องแต่ละประเภท",
+    Callback = function()
+        local nextgen = #FindBlocks("NEXT GENERATION")
+        local alt     = #FindBlocks("ALTERNATIVE")
+        local msg     = string.format("NEXT GENERATION: %d\nALTERNATIVE: %d", nextgen, alt)
+        Fluent:Notify({Title="ผลการค้นหา", Content=msg, Duration=6})
+        print(msg)
+    end
+})
+
+Tabs.Scan:AddButton({
+    Title    = "Position ทุกกล่อง",
     Callback = function()
         print("=== LUCKY BLOCK POSITIONS ===")
-        for _, bt in ipairs({"JAPAN","ALTERNATIVE"}) do
+        for _, bt in ipairs({"NEXT GENERATION","ALTERNATIVE"}) do
             local blocks = FindBlocks(bt)
             print("["..bt.."] "..#blocks.." กล่อง:")
             for i, part in ipairs(blocks) do
@@ -585,6 +587,34 @@ Tabs.Scan:AddButton({
     end
 })
 
+
+Tabs.Scan:AddButton({
+    Title       = "ตรวจสอบ CollectPads",
+    Description = "ดูว่าพบ CollectPads ไหม",
+    Callback    = function()
+        local pads = GetCollectPads()
+        if not pads then
+            Fluent:Notify({Title="ไม่พบ", Content="ไม่พบ CollectPads ใน workspace.Plots", Duration=5})
+            return
+        end
+        local prompts, parts = 0, 0
+        for _, d in ipairs(pads:GetDescendants()) do
+            if d:IsA("ProximityPrompt") then prompts += 1 end
+            if d:IsA("BasePart") then parts += 1 end
+        end
+        print("[TAWIN] CollectPads:", pads:GetFullName())
+        print("[TAWIN] Prompts:", prompts, "| Parts:", parts)
+        Fluent:Notify({
+            Title   = "พบ: "..pads:GetFullName(),
+            Content = "Prompts: "..prompts.." | Parts: "..parts,
+            Duration = 6
+        })
+    end
+})
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- TAB 4: MISC
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Tabs.Misc:AddToggle("Speed", {
     Title    = "Speed Hack",
     Default  = false,
@@ -600,7 +630,7 @@ Tabs.Misc:AddToggle("InfJump", {
     Default  = false,
     Callback = function(val)
         if val then
-            ijConn = UserInputService.JumpRequest:Connect(function()
+            ijConn = game:GetService("UserInputService").JumpRequest:Connect(function()
                 local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
                 if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
             end)
@@ -619,7 +649,7 @@ SaveManager:BuildConfigSection(Tabs.Misc)
 SaveManager:LoadAutoloadConfig()
 
 Fluent:Notify({
-    Title   = "TAWIN Lucky Block (1-120)",
-    Content = "โหลดแล้ว! กดปุ่ม ⚡ สี่เหลี่ยมบนจอ หรือ RightAlt เพื่อเปิด/ปิด UI",
+    Title   = "TAWIN Lucky Block",
+    Content = "โหลดแล้ว! กด RightAlt เปิด/ปิด UI\nกด Scan -> สแกนชื่อก่อนถ้า Farm ไม่ได้",
     Duration = 5
 })

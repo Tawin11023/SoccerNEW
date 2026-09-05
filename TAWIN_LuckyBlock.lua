@@ -1,7 +1,6 @@
 -- =========================================================================
---  TAWIN | Lucky Block Auto Farm
---  ตรวจจับจาก workspace.Live.Slimes
---  NEXT GENERATION | ALTERNATIVE Lucky Block (ตัด Japan ออก 100%)
+--  TAWIN | Lucky Block Auto Farm (Full Standalone + Toggle UI Button)
+--  มีปุ่ม ⚡ ลอยเปิด/ปิด UI + ตัด Japan ออก 100% + อัพบ้าน 1-120
 -- =========================================================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 task.wait(1)
@@ -9,6 +8,8 @@ task.wait(1)
 local Players             = game:GetService("Players")
 local TweenService        = game:GetService("TweenService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService    = game:GetService("UserInputService")
+local CoreGui             = game:GetService("CoreGui")
 local RunService          = game:GetService("RunService")
 local LocalPlayer         = Players.LocalPlayer
 
@@ -44,7 +45,7 @@ local function TweenTo(targetCF, speed)
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- ค้นหา Lucky Block (เฉพาะ NEXT GENERATION และ ALTERNATIVE)
+-- ค้นหา Lucky Block (NEXT GENERATION & ALTERNATIVE)
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local BLOCK_KEYS = {
     ["NEXT GENERATION"] = {"next generation", "next gen", "generation", "nextgeneration"},
@@ -54,7 +55,7 @@ local BLOCK_KEYS = {
 local function NameMatch(name, blockType)
     local nameLow = name:lower()
 
-    -- บล็อค JAPAN เด็ดขาด 100%
+    -- แบน JAPAN 100% ไม่ให้เก็บเด็ดขาด
     if nameLow:find("japan", 1, true) then
         return false
     end
@@ -96,7 +97,7 @@ local function FindBlocks(blockType)
 end
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- เก็บกล่อง — ยิง ProximityPrompt
+-- เก็บกล่อง — ProximityPrompt
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 local function TriggerPrompt(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
@@ -219,6 +220,76 @@ local Tabs = {
     Misc    = Window:AddTab({ Title = "Misc",      Icon = "settings" }),
 }
 local Options = Fluent.Options
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 🔘 ปุ่มลอยบนหน้าจอสำหรับคลิกเปิด/ปิด UI (ลากได้)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local toggleGui = Instance.new("ScreenGui")
+toggleGui.Name = "TawinToggleGui"
+pcall(function()
+    if syn and syn.protect_gui then
+        syn.protect_gui(toggleGui)
+        toggleGui.Parent = CoreGui
+    elseif gethui then
+        toggleGui.Parent = gethui()
+    else
+        toggleGui.Parent = CoreGui
+    end
+end)
+if not toggleGui.Parent then toggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Parent = toggleGui
+toggleBtn.Size = UDim2.new(0, 48, 0, 48)
+toggleBtn.Position = UDim2.new(0, 20, 0.5, -24)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+toggleBtn.Text = "⚡"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.TextSize = 22
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.Active = true
+toggleBtn.AutoButtonColor = true
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = toggleBtn
+
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(0, 170, 255)
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+stroke.Parent = toggleBtn
+
+-- ระบบลากปุ่ม (Drag)
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+toggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleBtn.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+toggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then update(input) end
+end)
+
+-- กดปุ่มเพื่อย่อ / เปิด UI
+toggleBtn.MouseButton1Click:Connect(function()
+    Window:Minimize()
+end)
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- TAB 1: AUTO FARM
@@ -503,6 +574,7 @@ Tabs.Scan:AddButton({
         local alt     = #FindBlocks("ALTERNATIVE")
         local msg     = string.format("NEXT GENERATION: %d\nALTERNATIVE: %d", nextgen, alt)
         Fluent:Notify({Title="ผลการค้นหา", Content=msg, Duration=6})
+        print(msg)
     end
 })
 
@@ -537,7 +609,7 @@ Tabs.Misc:AddToggle("InfJump", {
     Default  = false,
     Callback = function(val)
         if val then
-            ijConn = game:GetService("UserInputService").JumpRequest:Connect(function()
+            ijConn = UserInputService.JumpRequest:Connect(function()
                 local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
                 if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
             end)
@@ -557,6 +629,6 @@ SaveManager:LoadAutoloadConfig()
 
 Fluent:Notify({
     Title   = "TAWIN Lucky Block",
-    Content = "โหลดแล้ว! ระบบแบน Japan ออกแบบ 100% เรียบร้อย",
+    Content = "โหลดแล้ว! กดปุ่ม ⚡ บนจอเพื่อเปิด/ปิด UI ได้เลย",
     Duration = 5
 })
